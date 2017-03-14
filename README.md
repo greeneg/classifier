@@ -1,2 +1,2 @@
-# classifier
-A Puppet ENC and management system
+# Puppet Classifier
+A Puppet ENC and Management System
