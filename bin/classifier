@@ -1,0 +1,501 @@
+#!/usr/bin/perl
+
+#########################################################################################
+#                                                                                       #
+# Application: classifier.pl                                                            #
+# Summary:     A Puppet External Node Classifier                                        #
+# Author:      Gary L. Greene, Jr. <greeneg@yggdrasilsoft.com>                          #
+# Copyright:   2011-2017 YggdrasilSoft, LLC.                                            #
+# License:     Apache Public License, v2                                                #
+#                                                                                       #
+#=======================================================================================#
+#                                                                                       #
+# Licensed under the Apache License, Version 2.0 (the "License");                       #
+# you may not use this file except in compliance with the License.                      #
+# You may obtain a copy of the License at                                               #
+#                                                                                       #
+#     http://www.apache.org/licenses/LICENSE-2.0                                        #
+#                                                                                       #
+# Unless required by applicable law or agreed to in writing, software                   #
+# distributed under the License is distributed on an "AS IS" BASIS,                     #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.              #
+# See the License for the specific language governing permissions and                   #
+# limitations under the License.                                                        #
+#                                                                                       #
+#########################################################################################
+# $Id$
+
+use strict;
+use warnings;
+use English;
+use utf8;
+
+use Carp;
+use Config::IniFiles;
+use Data::Dumper;
+use File::Spec;
+use File::Basename;
+use JSON::XS qw(decode_json);
+use LWP::Simple;
+use POSIX;
+use YAML::XS;
+# We don't use this - yet.
+# use Net::LDAP;
+
+my $DEBUG = 1;
+
+sub get_general_config {
+    my $config = shift;
+
+    my $app = basename($0);
+
+    my %general_config;
+    $general_config{'baseurl'}         = $config->val('General', 'BaseURL');
+    $general_config{'logfile'}         = $config->val('General', 'LogFile');
+    $general_config{'debug_log'}       = $config->val('General', 'DebugLog');
+    $general_config{'secrets_backend'} = $config->val('General', 'SecretsBackend');
+    $general_config{'class_backend'}   = $config->val('General', 'ClassBackend');
+
+    if ($general_config{'secrets_backend'} eq "vault") {
+        if ($config->exists('General', 'Token')) {
+            $general_config{'vault_token'} = $config->val('General', 'Token');
+        } else {
+            # error out. We cannot retrieve secrets from Vault without a token
+            confess("$app: Missing security token for Vault backend: Exiting");
+        }
+        if ($config->exists('General', 'VaultURL')) {
+            $general_config{'vault_url'}   = $config->val('General', 'VaultURL');
+        } else {
+            confess("$app: Missing URL for Vault: Exiting");
+        }
+    } elsif ($general_config{'secrets_backend'} eq 'ini') {
+        if ($config->exists('General', 'SecretsIni')) {
+            $general_config{'secret_file'} = $config->val('General', 'SecretsIni');
+        } else {
+            confess("$app: Missing secrets file and path: Exting");
+        }
+    }
+
+    return %general_config;
+}
+
+# TODO: implement
+sub load_secrets_from_vault {
+    my $app = basename($0);
+    confess "$app: Not implemented: Exiting\n";
+}
+
+sub load_secrets_from_ini {
+    my $filename = shift;
+
+    my %secrets;
+    # the secrets in the INI backend are stored in a separate file than the general
+    # configuration. Open it
+    my $cfg_file = File::Spec->rootdir() . "etc/classifier/$filename";
+    my $cfg      = Config::IniFiles->new(-file => $cfg_file);
+    
+    # get the section names. These are the classes that the secrets are used in
+    my @sections = $cfg->Sections();
+
+    # get the list of parameters that store secrets for each class
+    foreach my $section (@sections) {
+        my @parameters = $cfg->Parameters($section);
+        # now load the section into the hash
+        foreach my $parameter (@parameters) {
+            $secrets{$section}->{$parameter} = $cfg->val($section, $parameter);
+        }
+    }
+
+    return %secrets;
+}
+
+# TODO: This sub is to be deprecated due to security concerns. The replacement for this
+#       will eventually use a secure secrets storage instead and no longer be in the main
+#       configuration file. If the 'file' backend is to be used, warn that it is
+#       insecure.
+sub get_secrets {
+    my %general_config = @_;
+
+    my %secrets;
+    # find out which backend we're using for this
+    if ($general_config{'secrets_backend'} eq 'ini') {
+        %secrets = load_secrets_from_ini($general_config{'secret_file'});
+    } elsif ($general_config{'secrets_backend'} eq 'vault') {
+        %secrets = load_secrets_from_vault($general_config{'vault_token'},
+                                           $general_config{'vault_url'});
+    }
+
+    return %secrets;
+}
+
+# TODO: Refactor behind a RESTful service to pull ckasses and their arguments
+#       instead of using static class assignment
+sub get_global_class_data {
+    my $cfg = shift;
+
+    my %global_classes;
+    $global_classes{'register_host'} = "";
+
+    return %global_classes;
+}
+
+# TODO: Refactor behind a RESTful service to pull classes and their arguments 
+#       instead of using static class assignment
+sub get_platform_options {
+    my $cfg = shift;
+
+    my %platform_options = (
+        'linux' => {
+            'superuser'            => $cfg->val('Linux', 'SuperUser'),
+            'prod_name'            => $cfg->val('Linux', 'ProductionName'),
+            'test_name'            => $cfg->val('Linux', 'TestingName')            
+        },
+        'macos' => {
+            'superuser'            => $cfg->val('OSX', 'SuperUser'),
+            'prod_name'            => $cfg->val('OSX', 'ProductionName'),
+            'test_name'            => $cfg->val('OSX', 'TestingName'),
+        },
+        'win32' => {
+            'superuser'            => $cfg->val('Win32', 'SuperUser'),
+            'prod_name'            => $cfg->val('Win32', 'ProductionName'),
+            'test_name'            => $cfg->val('Win32', 'TestingName'),
+        },
+    );
+
+    return %platform_options;
+}
+
+# TODO: Refactor behind a RESTful service to pull classes and their arguments 
+#       instead of using static class assignment
+sub get_linux_class_data {
+    my $cfg     = shift;
+    my %secrets = %{$_[0]};
+
+    my %linux_classes = (
+        'linux'                => "",
+        'superuser_password'   => {
+            'admin_fn'             => $cfg->val('Linux', 'AdminFullName'),
+            'admin_gid'            => $cfg->val('Linux', 'AdminGID'),
+            'admin_home'           => $cfg->val('Linux', 'AdminHome'),
+            'admin_shell'          => $cfg->val('Linux', 'AdminShell'),
+            'admin_uid'            => $cfg->val('Linux', 'AdminUID'),
+            'extra_admin'          => $cfg->val('Linux', 'AdditionalAdmin'),
+            'extra_admin_fn'       => $cfg->val('Linux', 'AdditionalAdminFN'),
+            'extra_admin_gid'      => $cfg->val('Linux', 'AdditionalAdminGID'),
+            'extra_admin_home'     => $cfg->val('Linux', 'AdditionalAdminHome'),
+            'extra_admin_shell'    => $cfg->val('Linux', 'AdditionalAdminShell'),
+            'extra_admin_uid'      => $cfg->val('Linux', 'AdditionalAdminUID'),
+            'builtin_admin_enable' => $cfg->val('Linux', 'BuiltinAdminEnable'),
+            'salt'                 => $secrets{'superuser_password'}->{'salt'},
+            'secret'               => $secrets{'superuser_password'}->{'linux_root_passwd'},
+            'superuser'            => $cfg->val('Linux', 'SuperUser'),
+            'iterations'           => "",
+            'plaintext_secret'     => "",
+        },
+        'ssh'                  => "",
+        'sudo'                 => ""
+    );
+
+    return %linux_classes;
+}
+
+# TODO: Refactor behind a RESTful service to pull classes and their arguments 
+#       instead of using static class assignment
+sub get_macos_class_data {
+    my $cfg     = shift;
+    my %secrets = %{$_[0]};
+
+    my %macos_classes = (
+        'macos'                => "",
+        'superuser_password'   => {
+            'admin_fn'             => $cfg->val('OSX', 'AdminFullName'),
+            'admin_gid'            => $cfg->val('OSX', 'AdminGID'),
+            'admin_home'           => $cfg->val('OSX', 'AdminHome'),
+            'admin_shell'          => $cfg->val('OSX', 'AdminShell'),
+            'admin_uid'            => $cfg->val('OSX', 'AdminUID'),
+            'extra_admin'          => $cfg->val('OSX', 'AdditionalAdmin'),
+            'extra_admin_fn'       => $cfg->val('OSX', 'AdditionalAdminFN'),
+            'extra_admin_gid'      => $cfg->val('OSX', 'AdditionalAdminGID'),
+            'extra_admin_home'     => $cfg->val('OSX', 'AdditionalAdminHome'),
+            'extra_admin_shell'    => $cfg->val('OSX', 'AdditionalAdminShell'),
+            'extra_admin_uid'      => $cfg->val('OSX', 'AdditionalAdminUID'),
+            'builtin_admin_enable' => $cfg->val('OSX', 'BuiltinAdminEnable'),
+            'salt'                 => $secrets{'superuser_password'}->{'salt'},
+            'secret'               => $secrets{'superuser_password'}->{'macos_root_secret'},
+            'superuser'            => $cfg->val('OSX', 'SuperUser'),
+            'iterations'           => $secrets{'superuser_password'}->{'macos_admin_iters'},
+            'plaintext_secret'     => $secrets{'superuser_password'}->{'macos_root_passwd'},
+        },
+        'ssh'                  => "",
+        'sudo'                 => ""
+    );
+
+    return %macos_classes;
+}
+
+# TODO: Refactor behind a RESTful service to pull classes and their arguments 
+#       instead of using static class assignment
+sub get_win32_class_data {
+    my $cfg = shift;
+    my %secrets = %{$_[0]};
+
+    my %win32_classes = (
+        'win32'                => "",
+        'superuser_password'   => {
+            'admin_fn'             => $cfg->val('Win32', 'AdminFullName'),
+            'admin_gid'            => $cfg->val('Win32', 'AdminGID'),
+            'admin_home'           => $cfg->val('Win32', 'AdminHome'),
+            'admin_shell'          => "",
+            'admin_uid'            => "",
+            'extra_admin'          => $cfg->val('Win32', 'AdditionalAdmin'),
+            'extra_admin_fn'       => $cfg->val('Win32', 'AdditionalAdminFN'),
+            'extra_admin_gid'      => $cfg->val('Win32', 'AdditionalAdminGID'),
+            'extra_admin_home'     => $cfg->val('Win32', 'AdditionalAdminHome'),
+            'extra_admin_shell'    => "",
+            'extra_admin_uid'      => "",
+            'builtin_admin_enable' => $cfg->val('Win32', 'BuiltinAdminEnable'),
+            'salt'                 => "",
+            'secret'               => $secrets{'superuser_passwd'}->{'win32_admin_secret'},
+            'superuser'            => $cfg->val('Win32', 'SuperUser'),
+            'iterations'           => "",
+            'plaintext_secret'     => "",
+        },
+        'remote_desktop'       => ""
+    );
+
+    return %win32_classes;
+}
+
+# TODO: Refactor behind a RESTful service to pull classes and their arguments 
+#       instead of using static class assignment
+sub get_global_parameters {
+    my $cfg = shift;
+
+    my %global_parameters = (
+        'primary_dns'   => $cfg->val('GlobalParameters', 'DNS1', ""),
+        'secondary_dns' => $cfg->val('GlobalParameters', 'DNS2', ""),
+        'search_path'   => $cfg->val('GlobalParameters', 'HostSearch', ""),
+    );
+
+    return %global_parameters;
+}
+
+sub load_config {
+    # read in configuration
+    my $cfg_file = File::Spec->rootdir() . "etc/classifier/config.ini";
+    my $cfg      = Config::IniFiles->new(-file => $cfg_file);
+
+    my %general_config = get_general_config($cfg);
+    my %secrets        = get_secrets(%general_config);
+
+    # platform specific data, move to a REST service
+    my %platform_options = get_platform_options($cfg);
+
+    # fleet-wide class data. Like the other stuff, this will move to a RESTful approach
+    # later
+    my %global_classes = get_global_class_data($cfg);
+
+    # platform class data. This is slated to be removed in favour of a RESTful approach
+    my %linux_classes = get_linux_class_data($cfg, \%secrets);
+    my %macos_classes = get_macos_class_data($cfg, \%secrets);
+    my %win32_classes = get_win32_class_data($cfg, \%secrets);
+
+    # the global parameters
+    my %global_parameters = get_global_parameters($cfg);
+
+    # turn this into a merged configuration hash
+    my %config = (
+        'general'        => \%general_config,
+        'secrets'        => \%secrets,
+        'platforms'      => \%platform_options,
+        'global_classes' => \%global_classes,
+        'linux_classes'  => \%linux_classes,
+        'macos_classes'  => \%macos_classes,
+        'win32_classes'  => \%win32_classes,
+        'global_params'  => \%global_parameters,
+    );
+
+    return %config;
+}
+
+sub logger {
+    my ($appname, $log, @msg) = @_;
+
+    my $ltime = strftime("%Y-%m-%d %H:%M:%S", localtime(time));
+    print $log "$ltime: $appname: @msg\n";
+}
+
+sub debug_logger {
+    my ($appname, $debug_log, @msg) = @_;
+
+    my $ltime = strftime("%Y-%m-%d %H:%M:%S", localtime(time));
+    print $debug_log "DEBUG LOG: $ltime: $appname: @msg";
+}
+
+sub print_and_log {
+    my ($appname, $debug_log, @msg) = @_;
+
+    debug_logger($appname, $debug_log, @msg);
+    print STDOUT "@msg";
+}
+
+sub get_host_os {
+    my ($appname, $log, $hostname, %config) = @_;
+
+    # First, which OS does this machine have? Query PuppetDB for this info
+    print STDERR "Puppet REST URL: $config{'general'}->{'baseurl'}/$hostname/facts/kernel\n" if $DEBUG;
+    logger($appname, $log, "Puppet REST URL: $config{'general'}->{'baseurl'}/$hostname/facts/kernel");
+    my $os_query_json = get("$config{'general'}->{'baseurl'}/$hostname/facts/kernel");
+
+    # more debugging code
+    print STDERR "JSON response to QUERY=kernel:\n $os_query_json\n" if $DEBUG;
+    logger($appname, $log, "JSON response to QUERY=kernel:\n $os_query_json");
+    my $decoded_os_json = decode_json($os_query_json);
+
+    print STDERR "Perl encoded response:\n" . Dumper($decoded_os_json) . "\n" if $DEBUG;
+    print STDERR "KERNEL: " . $decoded_os_json->[0]->{'value'} ."\n" if $DEBUG;
+    logger($appname, $log, "Perl encoded response:\n" . Dumper($decoded_os_json));
+    logger($appname, $log, "KERNEL: " . $decoded_os_json->[0]->{'value'});
+
+    return $decoded_os_json;
+}
+
+sub class_yaml_print {
+    my ($app, $class_type, $debug_log, %config) = @_;
+
+    foreach my $class (keys %{$config{$class_type}}) {
+        if (ref($config{$class_type}->{$class}) eq 'HASH') {
+            print_and_log($app, $debug_log, "  $class:\n");
+            foreach my $key (keys %{$config{$class_type}->{$class}}) {
+                print_and_log($app, $debug_log, "    $key: $config{$class_type}->{$class}->{$key}\n");
+            }
+        } else {
+            print_and_log($app, $debug_log, "  $class:\n");
+        }
+    }
+}
+
+sub global_parameters_yaml_print {
+    my ($app, $debug_log, %config) = @_;
+
+    print_and_log($app, $debug_log, "parameters: \n");
+    foreach my $param_name (keys %{$config{'global_params'}}) {
+        if (ref($config{'global_params'}->{$param_name}) eq 'HASH') {
+            print_and_log($app, $debug_log, "  $param_name:\n");
+            foreach my $key (keys %{$config{'global_params'}->{$param_name}}) {
+                print_and_log($app, $debug_log, "    $key: $config{'global_params'}->{$param_name}->{$key}\n");
+            }
+        } else {
+            print_and_log($app, $debug_log, "  $param_name: $config{'global_params'}->{$param_name}\n");
+        }
+    }
+}
+
+sub environment_yaml_print {
+    my ($app, $debug_log, $hostname, $decoded_os_json, %config) = @_;
+
+    # Which environment should we be in?
+    my $environment = "";
+    if ($decoded_os_json->[0]->{'value'} eq 'Linux') {
+        unless ($hostname eq 'test-vm-linux.minervanetworks.com') {
+            $environment = $config{'platforms'}->{'linux'}->{'prod_name'};
+        } else {
+            $environment = $config{'platforms'}->{'linux'}->{'test_name'};
+        }
+    } elsif ($decoded_os_json->[0]->{'value'} eq 'windows') {
+        unless ($hostname eq 'test-vm-winsrv.minervanetworks.com' or
+                $hostname eq 'test-w7-vm.minervanetworks.com' or
+                $hostname eq 'ggreene-w7-vm.minervanetworks.com') {
+            $environment = $config{'platforms'}->{'win32'}->{'prod_name'};
+        } else {
+            $environment = $config{'platforms'}->{'win32'}->{'test_name'};
+        }
+    } elsif ($decoded_os_json->[0]->{'value'} eq 'Darwin') {
+        unless ($hostname eq 'test-vm-mac.minervanetworks.com' or
+                $hostname eq 'ggreene-imac.minervanetworks.com') {
+            $environment = $config{'platforms'}->{'macos'}->{'prod_name'};
+        } else {
+            $environment = $config{'platforms'}->{'macos'}->{'test_name'};
+        }
+    }
+    print_and_log($app, $debug_log, "environment: $environment\n");
+}
+
+sub build_yaml {
+    my ($appname, $log, $debug_log, $hostname, $decoded_os_json, %config) = @_;
+
+    print STDERR "OUTPUT ------\n" if $DEBUG;
+    print STDERR "--\n" if $DEBUG;
+    debug_logger($appname, $debug_log, "***** $hostname *****\n");
+
+    # Now that we know the OS, we can build a rudimentary JSON file for response:
+    print_and_log($appname, $debug_log, "---\n");
+    print_and_log($appname, $debug_log, "classes: \n");
+
+    class_yaml_print($appname, 'global_classes', $debug_log, %config);
+    if ($decoded_os_json->[0]->{'value'} eq 'Linux') {
+        class_yaml_print($appname, 'linux_classes', $debug_log, %config);
+    } elsif ($decoded_os_json->[0]->{'value'} eq 'Darwin') {
+        class_yaml_print($appname, 'macos_classes', $debug_log, %config);
+    } elsif ($decoded_os_json->[0]->{'value'} eq 'windows') {
+        class_yaml_print($appname, 'win32_classes', $debug_log, %config);
+    }
+    
+    # now print the global parameters, if any
+    global_parameters_yaml_print($appname, $debug_log, %config);
+
+    # finally, the host's environment
+    environment_yaml_print($appname, $debug_log, $hostname, $decoded_os_json, %config);
+    
+    debug_logger($appname, $debug_log, "***** END: $hostname *****\n");
+}
+
+sub main {
+    # load configuration
+    my %config = load_config();
+
+    print STDERR "Dump of our config hash: \n" if $DEBUG;
+    print STDERR Dumper(%config), "\n" if $DEBUG;
+
+    # ENCs take in a hostname only. The rest of the arguments can go to the cutting room floor
+    chomp(my $hostname = shift);
+
+    # get the app name
+    my $appname = basename($0);
+
+    # open the log for writing
+    open(my $log, ">>", $config{'general'}->{'logfile'}) or
+        die("Cannot open log file\n");
+
+    # open debug log for writing
+    open(my $debug_log, ">>". $config{'general'}->{'debug_log'}) or
+        die("Cannot open log file\n");
+
+    # some debugging boilder plate
+    print STDERR "--\n" if $DEBUG;
+    print STDERR "BASEURL:   $config{'general'}->{'baseurl'}\n" if $DEBUG;
+    print STDERR "LOGFILE:   $config{'general'}->{'logfile'}\n" if $DEBUG;
+    print STDERR "DEBUG LOG: $config{'general'}->{'debug_log'}\n" if $DEBUG;
+    print STDERR "HOSTNAME:  $hostname\n" if $DEBUG;
+
+    # start writing to the logs
+    logger($appname, $log, "---- NEW RUN ----\n");
+    logger($appname, $log, "BASEURL:   $config{'general'}->{'baseurl'}");
+    logger($appname, $log, "LOGFILE:   $config{'general'}->{'logfile'}");
+    logger($appname, $log, "DEBUG LOG: $config{'general'}->{'debug_log'}");
+    logger($appname, $log, "HOSTNAME:  $hostname");
+
+    # get the host's OS name
+    my $decoded_os_json = get_host_os($appname, $log, $hostname, %config);
+
+    build_yaml($appname, $log, $debug_log, $hostname, $decoded_os_json, %config);
+
+    # properly close our logs
+    close $log;
+    close $debug_log;
+}
+
+# main pass in the arguments
+main(@ARGV);
+
+exit 0;
