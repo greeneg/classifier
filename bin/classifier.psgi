@@ -15,10 +15,6 @@
 # KIND, either express or implied. See the License for the specific language governing
 # permissions and limitations under the License. 
 #
-# $Rev: $
-# $Author: $
-# $Date: $
-#
 
 use strict;
 use warnings;
@@ -44,7 +40,12 @@ sub main {
     print STDERR ">> Starting the Puppet Classifier Web Application, version $VERSION\n";
     print STDERR ">> ". $Classifier::Constants::license . "\n";
     print STDERR "----------------------------------------------------------------------\n";
-    err_log("== DEBUGGING ==: PERL INCLUDE PATH: @INC") if $DEBUG;
+    err_log("== DEBUGGING ==: PERL INCLUDE PATH:") if $DEBUG;
+    if ($DEBUG) {
+        foreach my $p (@INC) {
+            print STDERR "== DEBUGGING ==:    $p\n";
+        }
+    }
     err_log("== DEBUGGING ==: MOUNTING PLACK::BUILDER ENDPOINTS") if $DEBUG;
 
     builder {
