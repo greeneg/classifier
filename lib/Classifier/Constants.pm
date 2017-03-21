@@ -17,10 +17,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License. 
 #
-# $Rev: $
-# $Author: $
-# $Date: $
-#
 
 package Classifier::Constants;
 
@@ -55,7 +51,7 @@ our $login_title;
 our $title;
 
 # initialize package globals, first exported ones
-$version     = 0.1;
+$version     = 0.3;
 $copyright   = 'Copyright 2017 YggdrasilSoft, LLC. All Rights Reserved.';
 $license     = 'Licensed under the Apache Public License version 2.0';
 $title       = 'Puppet Classifier';
