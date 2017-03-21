@@ -1,0 +1,74 @@
+# 
+# Author: Gary Greene <greeneg@tolharadys.net>
+# Copyright: 2017 YggdrasilSoft, LLC.
+#
+#########################################################################################
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use this 
+# file except in compliance with the License. You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#    
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# $Rev: $
+# $Author: $
+# $Date: $
+#
+
+# This is the main configuration file of Puppet Classifier. Environment-related settings
+# should go to environments/$env.yml.
+#
+# All the settings in this file will be loaded at Dancer's startup.
+
+# Your application's name
+appname: "classifier"
+
+# The default layout to use for your application (located in
+# views/layouts/main.tt)
+layout: "main"
+
+# when the charset is set to UTF-8 Dancer2 will handle for you
+# all the magic of encoding and decoding. You should not care
+# about unicode within your app when this setting is set (recommended).
+charset: "UTF-8"
+
+# template engine
+# simple: default and very basic template engine
+# template_toolkit: TT
+
+template: "template_toolkit"
+
+engines:
+   template:
+     template_toolkit:
+       start_tag: '<%'
+       end_tag:   '%>'
+       debug:     1
+
+# session engine
+#
+# Simple: in-memory session store - Dancer2::Session::Simple
+# YAML: session stored in YAML files - Dancer2::Session::YAML
+#
+# Check out metacpan for other session storage options:
+# https://metacpan.org/search?q=Dancer2%3A%3ASession&search_type=modules
+#
+# Default value for 'cookie_name' is 'dancer.session'. If you run multiple
+# Dancer apps on the same host then you will need to make sure 'cookie_name'
+# is different for each app.
+#
+#engines:
+#  session:
+#    Simple:
+#      cookie_name: testapp.session
+#
+#engines:
+#  session:
+#    YAML:
+#      cookie_name: eshop.session
+#      is_secure: 1
+#      is_http_only: 1
