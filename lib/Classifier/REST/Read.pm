@@ -82,9 +82,12 @@ sub get_computers {
 
     my $sub = (caller(0))[3];
     err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
+    # our configuration
     my $_c  = shift;
     my %config = %{$_c};
     undef $_c;
+    # the database handle
+    my $dbh = shift;
 
     status 200;
     my $computers = mk_json_struct();
@@ -103,9 +106,12 @@ sub get_classes {
 
     my $sub = (caller(0))[3];
     err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
+    # our config
     my $_c  = shift;
     my %config = %{$_c};
     undef $_c;
+    # the database handle
+    my $dbh = shift;
 
     status 200;
     my $classes = mk_json_struct();
@@ -124,9 +130,12 @@ sub get_distributions {
 
     my $sub = (caller(0))[3];
     err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
+    # our config
     my $_c  = shift;
     my %config = %{$_c};
     undef $_c;
+    # the database handle
+    my $dbh = shift;
 
     status 200;
     my $distributions = mk_json_struct();
@@ -145,9 +154,12 @@ sub get_environments {
 
     my $sub = (caller(0))[3];
     err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
+    # our config
     my $_c  = shift;
     my %config = %{$_c};
     undef $_c;
+    # the database handle
+    my $dbh = shift;
 
     status 200;
     my $environments = mk_json_struct();
@@ -166,9 +178,12 @@ sub get_operatingsystems {
 
     my $sub = (caller(0))[3];
     err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
+    # our config
     my $_c  = shift;
     my %config = %{$_c};
     undef $_c;
+    # the database handle
+    my $dbh = shift;
 
     status 200;
     my $operatingsystems = mk_json_struct();
