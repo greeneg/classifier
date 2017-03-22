@@ -28,6 +28,7 @@ use FindBin;
 
 use lib "$FindBin::Bin/../lib";
 use Classifier::Constants;
+use Classifier::Functions qw(err_log);
 
 my $DEBUG = 0;
 if (exists $ENV{'DEBUG'} && $ENV{'DEBUG'} == 1) {
@@ -37,8 +38,8 @@ if (exists $ENV{'DEBUG'} && $ENV{'DEBUG'} == 1) {
 our $VERSION = $Classifier::Constants::version;
 
 sub main {
-    print STDERR ">> Starting the Puppet Classifier Front-end server version ". $Classifier::Constants::version . "\n" if $DEBUG;
-    print STDERR "-------------------------------------------------------------\n" if $DEBUG;
+    err_log(">> Starting the Puppet Classifier Front-end server version ". $Classifier::Constants::version) if $DEBUG;
+    err_log("---------------------------------------------------------------") if $DEBUG;
 
     # Dancer2 configuration
     my $appdir = config->{appdir};
@@ -46,8 +47,6 @@ sub main {
     set startup_info   => 1;
     set template       => 'template_toolkit';
     set static_handler => 1;
-
-    print STDERR "-------------------------------------------------------------\n"    if $DEBUG;
 
 #    my %configuration = loadConfig($appdir);
 
