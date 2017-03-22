@@ -28,6 +28,8 @@ use utf8;
 use Config::IniFiles;
 use Date::Format;
 use Dancer2;
+use DBI;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Classifier::Constants;
@@ -53,14 +55,18 @@ sub load_config {
 
     my %configuration = ();
 
-    $configuration{'webroot'}           = $config->val('Web', 'webpath');
+    $configuration{'db_host'}           = $config->val('DB', 'Host');
+    $configuration{'db_name'}           = $config->val('DB', 'Name');
+    $configuration{'db_user'}           = $config->val('DB', 'User');
+    $configuration{'db_password'}       = $config->val('DB', 'Password');
+    $configuration{'webroot'}           = $config->val('Web', 'Webpath');
 
     return %configuration;
 }
 
 sub main {
     err_log(">> Starting the Puppet Classifier API server version ". $Classifier::Constants::version);
-    err_log("-------------------------------------------------------------");
+    err_log("---------------------------------------------------------------");
 
     # Dancer2 configuration
     my $appdir = config->{appdir};
@@ -71,22 +77,37 @@ sub main {
     set startup_info   => 1;
 
     use Data::Dumper;
-    print STDERR "== DEBUGGING ==:\n", Dumper(config), "\n" if $DEBUG;
+    err_log("== DEBUGGING ==: Dancer2 Engine Configuration:\n", Dumper(config)) if $DEBUG;
+
+    err_log("== DEBUGGING ==: MySQL Database Host: $config{'db_host'}") if $DEBUG;
+    err_log("== DEBUGGING ==: MySQL Database Name: $config{'db_name'}") if $DEBUG;
+    err_log("== DEBUGGING ==: MySQL Database User: $config{'db_user'}") if $DEBUG;
+    err_log("== DEBUGGING ==: MySQL Database User Password: $config{'db_password'}") if $DEBUG == 2;
+    err_log("== DEBUGGING ==: Webroot: $config{'webroot'}") if $DEBUG;
+
+    err_log("---------------------------------------------------------------") if $DEBUG;
+
+    my $dbh = DBI->connect(
+        "DBI:mysql:database=$config{'db_name'};host=$config{'db_host'}",
+        $config{'db_user'},
+        $config{'db_password'},
+        { RaiseError => 1, AutoCommit => 0 }
+    );
 
     my $reader = Classifier::REST::Read->new();
 
     # our get URLs
     get '/'                              => sub { $reader->get_root( \%config ) };
-    get '/computers'                     => sub { $reader->get_computers( \%config ) };
-    get '/computers/'                    => sub { $reader->get_computers( \%config ) };
-    get '/classes'                       => sub { $reader->get_classes( \%config ) };
-    get '/classes/'                      => sub { $reader->get_classes( \%config ) };
-    get '/distributions'                 => sub { $reader->get_distributions( \%config ) };
-    get '/distributions/'                => sub { $reader->get_distributions( \%config ) };
-    get '/environments'                  => sub { $reader->get_environments( \%config ) };
-    get '/environments/'                 => sub { $reader->get_environments( \%config ) };
-    get '/operatingsystems'              => sub { $reader->get_operatingsystems( \%config ) };
-    get '/operatingsystems/'             => sub { $reader->get_operatingsystems( \%config ) };
+    get '/computers'                     => sub { $reader->get_computers( \%config, $dbh ) };
+    get '/computers/'                    => sub { $reader->get_computers( \%config, $dbh ) };
+    get '/classes'                       => sub { $reader->get_classes( \%config, $dbh ) };
+    get '/classes/'                      => sub { $reader->get_classes( \%config, $dbh ) };
+    get '/distributions'                 => sub { $reader->get_distributions( \%config, $dbh ) };
+    get '/distributions/'                => sub { $reader->get_distributions( \%config, $dbh ) };
+    get '/environments'                  => sub { $reader->get_environments( \%config, $dbh ) };
+    get '/environments/'                 => sub { $reader->get_environments( \%config, $dbh ) };
+    get '/operatingsystems'              => sub { $reader->get_operatingsystems( \%config, $dbh ) };
+    get '/operatingsystems/'             => sub { $reader->get_operatingsystems( \%config, $dbh ) };
 }
 
 main();
