@@ -31,6 +31,8 @@ use Dancer2;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Classifier::Constants;
+use Classifier::Functions qw(err_log cur_time mk_json_struct);
+use Classifier::REST::Read;
 
 my $DEBUG = 0;
 if (exists $ENV{'DEBUG'} && $ENV{'DEBUG'} == 1) {
@@ -38,10 +40,6 @@ if (exists $ENV{'DEBUG'} && $ENV{'DEBUG'} == 1) {
 }
 
 our $VERSION = $Classifier::Constants::version;
-
-sub err_log {
-    return print STDERR "@_\n";
-}
 
 sub load_config {
     my $appdir = shift;
@@ -60,58 +58,6 @@ sub load_config {
     return %configuration;
 }
 
-sub get_root {
-    my $sub = (caller(0))[3];
-    err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
-
-    my $_c = shift;
-    my %config = %{$_c};
-    undef $_c;
-
-    my @lt = localtime(time);
-    my $jf_date     = strftime('%Y-%m-%dT%H:%M:%S.000Z', @lt);
-
-    status 200;
-    my $root = {
-        'data'       => undef,
-        'jsonapi'    => { 'version' => '1.0' },
-        'links'      => {
-            'self'             => $config{webroot} . "/api/v1/",
-            'computers'        => $config{webroot} . "/api/v1/computers",
-            'classes'          => $config{webroot} . "/api/v1/classes",
-            'distributions'    => $config{webroot} . "/api/v1/distributions",
-            'environments'     => $config{webroot} . "/api/v1/environments",
-            'operatingsystems' => $config{webroot} . "/api/v1/operatingsystems",
-            'parent'           => $config{webroot} . "/api/v1/",
-        },
-        'attributes' => {
-            'created'          => $jf_date
-        }
-    };
-    return $root;
-}
-
-sub get_computers {
-    my $sub = (caller(0))[3];
-    err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
-    my $_c  = shift;
-    my %config = %{$_c};
-    undef $_c;
-
-    
-
-    status 200;
-    my $computers = {
-        'data'    => undef,
-        'jsonapi' => { 'version' => '1.0' },
-        'links'   => {
-            'self'   => $config{webroot} . "/api/v1/computers",
-            'parent' => $config{webroot} . "/api/v1/",
-        }
-    };
-    return $computers;
-}
-
 sub main {
     err_log(">> Starting the Puppet Classifier API server version ". $Classifier::Constants::version);
     err_log("-------------------------------------------------------------");
@@ -127,8 +73,20 @@ sub main {
     use Data::Dumper;
     print STDERR "== DEBUGGING ==:\n", Dumper(config), "\n" if $DEBUG;
 
+    my $reader = Classifier::REST::Read->new();
+
     # our get URLs
-    get '/'                              => sub { get_root( \%config ) };
+    get '/'                              => sub { $reader->get_root( \%config ) };
+    get '/computers'                     => sub { $reader->get_computers( \%config ) };
+    get '/computers/'                    => sub { $reader->get_computers( \%config ) };
+    get '/classes'                       => sub { $reader->get_classes( \%config ) };
+    get '/classes/'                      => sub { $reader->get_classes( \%config ) };
+    get '/distributions'                 => sub { $reader->get_distributions( \%config ) };
+    get '/distributions/'                => sub { $reader->get_distributions( \%config ) };
+    get '/environments'                  => sub { $reader->get_environments( \%config ) };
+    get '/environments/'                 => sub { $reader->get_environments( \%config ) };
+    get '/operatingsystems'              => sub { $reader->get_operatingsystems( \%config ) };
+    get '/operatingsystems/'             => sub { $reader->get_operatingsystems( \%config ) };
 }
 
 main();
