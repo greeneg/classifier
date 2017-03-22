@@ -108,6 +108,8 @@ sub main {
     get '/environments/'                 => sub { $reader->get_environments( \%config, $dbh ) };
     get '/operatingsystems'              => sub { $reader->get_operatingsystems( \%config, $dbh ) };
     get '/operatingsystems/'             => sub { $reader->get_operatingsystems( \%config, $dbh ) };
+
+    $dbh->disconnect;
 }
 
 main();
