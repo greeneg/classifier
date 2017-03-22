@@ -28,13 +28,10 @@ use Classifier;
 use Classifier::REST;
 use Plack::Builder;
 use Classifier::Constants;
+use Classifier::Functions qw(err_log);
 
 my $DEBUG = 1;
 my $VERSION = "$Classifier::Constants::version";
-
-sub err_log {
-    return print STDERR "@_\n";
-}
 
 sub main {
     print STDERR ">> Starting the Puppet Classifier Web Application, version $VERSION\n";
