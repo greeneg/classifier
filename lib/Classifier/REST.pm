@@ -109,7 +109,6 @@ sub main {
     get '/operatingsystems'              => sub { $reader->get_operatingsystems( \%config, $dbh ) };
     get '/operatingsystems/'             => sub { $reader->get_operatingsystems( \%config, $dbh ) };
 
-    $dbh->disconnect;
 }
 
 main();
