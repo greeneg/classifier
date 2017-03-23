@@ -161,6 +161,9 @@ sub get_environments {
     # the database handle
     my $dbh = shift;
 
+    # prepared statement
+    my $sth = $dbh->prepare("SELECT * FROM environments");
+
     status 200;
     my $environments = mk_json_struct();
     $environments->{'data'}  = undef;
@@ -168,6 +171,23 @@ sub get_environments {
         'self'   => $config{webroot} . "/api/v1/environments",
         'parent' => $config{webroot} . "/api/v1/",
     };
+    $sth->execute();
+    my @env_list;
+    while (my $ref = $sth->fetchrow_hashref()) {
+        push(@env_list,
+            {
+                'type'       => 'environments',
+                'id'         => $ref->{'Id'},
+                'attributes' => {
+                    'name'   => "$ref->{'Name'}"
+                },
+                'links'      => $config{webroot} . "/api/v1/environments/$ref->{'Id'}"
+            }
+        );
+        $environments->{'links'}->{$ref->{'Id'}} = $config{webroot} . "/api/v1/environments/$ref->{'Id'}";
+    }
+    $sth->finish();
+    $environments->{'data'} = \@env_list;
     $environments->{'attributes'} = { 'created' => cur_time() };
 
     return $environments;
@@ -185,6 +205,9 @@ sub get_operatingsystems {
     # the database handle
     my $dbh = shift;
 
+    # prepare statement
+    my $sth = $dbh->prepare("SELECT * FROM operatingsystems");
+
     status 200;
     my $operatingsystems = mk_json_struct();
     $operatingsystems->{'data'}  = undef;
@@ -192,6 +215,23 @@ sub get_operatingsystems {
         'self'   => $config{webroot} . "/api/v1/operatingsystems",
         'parent' => $config{webroot} . "/api/v1/",
     };
+    $sth->execute();
+    my @os_list;
+    while (my $ref = $sth->fetchrow_hashref()) {
+        push(@os_list,
+            {
+                'type'       => 'operatingsystem',
+                'id'         => $ref->{'Id'},
+                'attributes' => {
+                    'name'   => $ref->{'Name'}
+                },
+                'links'      => $config{webroot} . "/api/v1/operatingsystems/$ref->{'Id'}"
+            }
+        );
+        $operatingsystems->{'links'}->{$ref->{'Id'}} = $config{webroot} . "/api/v1/operatingsystems/$ref->{'Id'}";
+    }
+    $sth->finish();
+    $operatingsystems->{'data'} = \@os_list;
     $operatingsystems->{'attributes'} = { 'created' => cur_time() };
 
     return $operatingsystems;
