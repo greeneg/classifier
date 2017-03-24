@@ -137,6 +137,9 @@ sub get_distributions {
     # the database handle
     my $dbh = shift;
 
+    # prepared statement
+    my $sth = $dbh->prepare("SELECT * FROM distributions");
+
     status 200;
     my $distributions = mk_json_struct();
     $distributions->{'data'}  = undef;
@@ -144,6 +147,33 @@ sub get_distributions {
         'self'   => $config{webroot} . "/api/v1/distributions",
         'parent' => $config{webroot} . "/api/v1/",
     };
+    $sth->execute();
+    my @distro_list;
+    while (my $ref = $sth->fetchrow_hashref()) {
+        push(@distro_list,
+            {
+                'type'          => 'distributions',
+                'id'            => $ref->{'Id'},
+                'attributes'    => {
+                    'name'      => "$ref->{'DistributionName'}",
+                    'os'        => "$ref->{'OS'}"
+                },
+                'links'         => $config{webroot} . "/api/v1/distributions/$ref->{'Id'}",
+                'relationships' => {
+                    'operatingsystems' => {
+                        'links'        => {
+                            'self'     => $config{webroot} . "/api/v1/distributions/$ref->{'Id'}/distribution",
+                            'related'  => $config{webroot} . "/api/v1/operatingsystems/$ref->{'OS'}/distributions"
+                        },
+                        'data'         => { 'type' => 'operatingsystem', 'id' => "$ref->{'OS'}" }
+                    }
+                }
+            }
+        );
+        $distributions->{'links'}->{$ref->{'Id'}} = $config{webroot} . "/api/v1/distributions/$ref->{'Id'}";
+    }
+    $sth->finish();
+    $distributions->{'data'} = \@distro_list;
     $distributions->{'attributes'} = { 'created' => cur_time() };
 
     return $distributions;
