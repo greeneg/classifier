@@ -125,6 +125,52 @@ sub get_classes {
     return $classes;
 }
 
+sub get_distribution_by_id {
+    my $self    = shift;
+    my $sub     = (caller(0))[3];
+    err_log("== DEBUGGING ==: In function: $sub") if $DEBUG;
+    # our config
+    my $_c      = shift;
+    my %config  = %{$_c};
+    undef $_c;
+    # DB handle
+    my $dbh     = shift;
+
+    my $dist_id = params->{dist_id};
+
+    my $sth = $dbh->prepare("SELECT * FROM distributions WHERE `Id` = ?");
+
+    status 200;
+    my $distribution = mk_json_struct();
+    $distribution->{'data'}  = undef;
+    $distribution->{'links'} = {
+        'self'   => $config{webroot} . "/api/v1/distributions/$dist_id",
+        'parent' => $config{webroot} . "/api/v1/distributions",
+    };
+    $sth->execute($dist_id);
+    my $ref = $sth->fetchrow_hashref();
+    my $distro = {
+        'type'          => 'distribution',
+        'id'            => $ref->{'Id'},
+        'attributes'    => {
+            'name'      => "$ref->{'DistributionName'}",
+            'os'        => "$ref->{'OS'}"
+        },
+        'links'         => $config{webroot} . "/api/v1/distrbutions/$ref->{'Id'}",
+        'relationships' => {
+            'operatingsystems' => {
+                'links'        => {
+                    'self'     => $config{webroot} . "/api/v1/distrbutions/$ref->{'Id'}/distribution",
+                    'related'  => $config{webroot} . "/api/v1/operatingsystems/$ref->{'OS'}/distributions"
+                },
+                'data'         => { 'type' => 'operatingsystem', 'id' => "$ref->{'OS'}" }
+            }
+        }
+    };
+
+    return $distribution;
+}
+
 sub get_distributions {
     my $self = shift;
 

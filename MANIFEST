@@ -4,13 +4,13 @@ config.yml
 cpanfile
 Makefile.PL
 MANIFEST.SKIP
-bin/app.psgi
+bin/classifier.psgi
 bin/classifier
 bin/register_host
 bin/register_class
 environments/development.yml
 environments/production.yml
-lib/classifier.pm
+lib/Classifier.pm
 public/dispatch.cgi
 public/dispatch.fcgi
 public/404.html

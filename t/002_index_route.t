@@ -1,12 +1,13 @@
 use strict;
 use warnings;
 
-use classifier;
+use Classifier;
+use Plack::Builder;
 use Test::More tests => 2;
 use Plack::Test;
 use HTTP::Request::Common;
 
-my $app = classifier->to_app;
+my $app = Classifier->to_app;
 is( ref $app, 'CODE', 'Got app' );
 
 my $test = Plack::Test->create($app);

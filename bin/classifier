@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 #########################################################################################
 #                                                                                       #
@@ -38,11 +38,12 @@ use File::Basename;
 use JSON::XS qw(decode_json);
 use LWP::Simple;
 use POSIX;
+use Sys::Hostname;
 use YAML::XS;
 # We don't use this - yet.
 # use Net::LDAP;
 
-my $DEBUG = 1;
+my $DEBUG = 0;
 
 sub get_general_config {
     my $config = shift;
@@ -458,7 +459,9 @@ sub main {
     print STDERR Dumper(%config), "\n" if $DEBUG;
 
     # ENCs take in a hostname only. The rest of the arguments can go to the cutting room floor
+    no warnings; # drop warnings to kill unnecessary error in some cases
     chomp(my $hostname = shift);
+    use warnings;
 
     # get the app name
     my $appname = basename($0);
@@ -470,6 +473,11 @@ sub main {
     # open debug log for writing
     open(my $debug_log, ">>". $config{'general'}->{'debug_log'}) or
         die("Cannot open log file\n");
+
+    # if the hostname is undefined, pull from the host itself
+    unless ($hostname) {
+        $hostname = hostname;
+    }
 
     # some debugging boilder plate
     print STDERR "--\n" if $DEBUG;

@@ -1,0 +1,3 @@
+logger: console
+log: 'warning'
+startup_info: 0

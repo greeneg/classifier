@@ -65,8 +65,8 @@ sub load_config {
 }
 
 sub main {
-    err_log(">> Starting the Puppet Classifier API server version ". $Classifier::Constants::version);
-    err_log("---------------------------------------------------------------");
+    err_log(">> Starting the Puppet Classifier API server version ". $Classifier::Constants::version) if $DEBUG;
+    err_log("---------------------------------------------------------------") if $DEBUG;
 
     # Dancer2 configuration
     my $appdir = config->{appdir};
@@ -104,6 +104,8 @@ sub main {
     get '/classes/'                      => sub { $reader->get_classes( \%config, $dbh ) };
     get '/distributions'                 => sub { $reader->get_distributions( \%config, $dbh ) };
     get '/distributions/'                => sub { $reader->get_distributions( \%config, $dbh ) };
+    get '/distributions/:dist_id'        => sub { $reader->get_distribution_by_id( \%config, $dbh ) };
+    get '/distributions/:dist_id/'       => sub { $reader->get_distribution_by_id( \%config, $dbh ) };
     get '/environments'                  => sub { $reader->get_environments( \%config, $dbh ) };
     get '/environments/'                 => sub { $reader->get_environments( \%config, $dbh ) };
     get '/operatingsystems'              => sub { $reader->get_operatingsystems( \%config, $dbh ) };

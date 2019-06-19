@@ -10,7 +10,7 @@ $eumm_version =~ s/_//;
 WriteMakefile(
     NAME                => 'classifier',
     AUTHOR              => q{Gary Greene <greeneg@tolharadys.net>},
-    VERSION_FROM        => 'lib/classifier.pm',
+    VERSION_FROM        => 'lib/Classifier/Constants.pm',
     ABSTRACT            => 'A Puppet Classifier and Management System',
     ($eumm_version >= 6.3001
       ? ('LICENSE'=> 'perl')
