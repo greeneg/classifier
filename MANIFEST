@@ -21,7 +21,10 @@ public/css/style.css
 public/images/perldancer-bg.jpg
 public/images/perldancer.jpg
 public/javascripts/jquery.js
+t/000_compile.t
 t/001_base.t
 t/002_index_route.t
+t/003_Function_tests.t
+t/004_rest_get_routes.t
 views/index.tt
 views/layouts/main.tt
